@@ -19,5 +19,6 @@ if __name__ == '__main__':
     with open(CONFIG_PATH) as conf_file:
         config.read_file(conf_file)
     uri = config["Slack"]["WebhookUri"]
+
     par = dcom.get_dcom_data(dcom.get_random_dcom())
     slack_message(uri, par)

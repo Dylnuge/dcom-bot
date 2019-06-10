@@ -48,7 +48,7 @@ def get_random_dcom():
     return random.choice(films)
 
 
-def _get_lede_data(page_id):
+def _get_lede(page_id):
     params = {
         'action': "parse",
         'format': "json",
@@ -68,10 +68,49 @@ def _get_lede_data(page_id):
     paragraphs = [p.getText().strip() for p in soup.find_all('p')]
     # Filter out empty paragraphs and citation tags
     paragraphs = [CITATION_REGEX.sub("", p) for p in paragraphs if p.strip()]
-    return paragraphs
+    # Return the first non empty paragraph
+    return paragraphs[0]
+
+
+def _get_plot(page_id):
+    # TODO similar to get lede code should merge
+    params = {
+        'action': "parse",
+        'format': "json",
+        'pageid': page_id,
+        'prop': "text",
+        'section': 1,
+    }
+    result = requests.get(WIKI_API, params)
+    if result.status_code != 200:
+        # IDK error handling sounds nice
+        logger.critical("Error fetching page {} from Wikipedia: {}", page_id,
+                        result)
+        raise Exception
+    returned_html = result.json()['parse']['text']['*']
+    soup = bs4.BeautifulSoup(returned_html)
+    # HACK: Just see if the first section header has the word Plot in it. We
+    # could try all sections but the first section is almost always the Plot
+    if soup.h2.getText().find('Plot') == -1:
+        # If it doesn't have the word plot throw the section away
+        return None
+
+    # Get non empty paragraphs, filtered of citation tags
+    paragraphs = [p.getText().strip() for p in soup.find_all('p')]
+    # Filter out empty paragraphs and citation tags
+    paragraphs = [CITATION_REGEX.sub("", p) for p in paragraphs if p.strip()]
+
+    # Add a quote
+    paragraphs = ['> ' + p for p in paragraphs]
+
+    return '\n>\n'.join(paragraphs)
 
 
 def get_dcom_data(dcom):
     page_id = dcom['pageid']
-    lede = _get_lede_data(page_id)[0]
-    return lede
+    lede = _get_lede(page_id)
+    plot = _get_plot(page_id)
+    if plot:
+        return lede + '\n\n' + plot
+    else:
+        return lede
